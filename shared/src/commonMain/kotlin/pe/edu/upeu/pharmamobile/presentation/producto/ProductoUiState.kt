@@ -1,0 +1,53 @@
+package pe.edu.upeu.pharmamobile.presentation.producto
+
+import pe.edu.upeu.pharmamobile.domain.model.Producto
+import pe.edu.upeu.pharmamobile.platform.formatearSoles
+
+sealed interface ProductoFase {
+    data object Cargando : ProductoFase
+    data object SinProductos : ProductoFase
+    data class ConProductos(val productos: List<ProductoUi>) : ProductoFase
+    data class Error(val mensaje: String) : ProductoFase
+}
+
+data class ProductoUi(
+    val id: Long,
+    val nombre: String,
+    val precio: String,
+    val stock: Int,
+    val requiereReposicion: Boolean,
+    val pendiente: Boolean = false,
+    val intentos: Int = 0,
+    val ultimoError: String? = null
+) {
+    companion object {
+        fun from(producto: Producto): ProductoUi {
+            return ProductoUi(
+                producto.id, producto.nombre, formatearSoles(producto.precio),
+                producto.stock, producto.requiereReposicion, producto.pendiente,
+                producto.intentos, producto.ultimoError
+            )
+        }
+    }
+}
+
+data class ProductoFormularioState(
+    val nombre: String = "",
+    val precio: String = "",
+    val stock: String = "",
+    val errorNombre: String? = null,
+    val errorPrecio: String? = null,
+    val errorStock: String? = null
+)
+
+data class ProductoUiState(
+    val fase: ProductoFase = ProductoFase.Cargando,
+    val formulario: ProductoFormularioState = ProductoFormularioState(),
+    val guardando: Boolean = false,
+    val mensaje: String? = null,
+    val sincronizando: Boolean = false,
+    val avisoRed: String? = null,
+    val ultimaSincronizacion: String = "Nunca sincronizado",
+    val pendientes: Int = 0,
+    val fallidas: Int = 0
+)

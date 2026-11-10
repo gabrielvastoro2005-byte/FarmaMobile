@@ -1,0 +1,264 @@
+package pe.edu.upeu.pharmamobile
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import org.koin.compose.KoinContext
+import org.koin.compose.viewmodel.koinViewModel
+import pe.edu.upeu.pharmamobile.navigation.Screen
+import pe.edu.upeu.pharmamobile.navigation.tituloPantalla
+import pe.edu.upeu.pharmamobile.navigation.destinosPermitidos
+import pe.edu.upeu.pharmamobile.navigation.destinosOffline
+import pe.edu.upeu.pharmamobile.presentation.cliente.ClienteScreen
+import pe.edu.upeu.pharmamobile.presentation.catalogo.CatalogoScreen
+import pe.edu.upeu.pharmamobile.presentation.catalogo.CatalogoViewModel
+import pe.edu.upeu.pharmamobile.presentation.detalle.DetalleProductoScreen
+import pe.edu.upeu.pharmamobile.presentation.detalle.DetalleProductoViewModel
+import pe.edu.upeu.pharmamobile.presentation.inicio.InicioScreen
+import pe.edu.upeu.pharmamobile.presentation.pedido.PedidoScreen
+import pe.edu.upeu.pharmamobile.presentation.producto.ProductoScreen
+import pe.edu.upeu.pharmamobile.domain.model.Permisos
+import pe.edu.upeu.pharmamobile.presentation.sesion.LoginScreen
+import pe.edu.upeu.pharmamobile.presentation.sesion.SesionViewModel
+import pe.edu.upeu.pharmamobile.presentation.sesion.UsuarioSesionUi
+import androidx.compose.material3.TextButton
+import pe.edu.upeu.pharmamobile.presentation.pharmasoft.ProductosServidorScreen
+import pe.edu.upeu.pharmamobile.presentation.pharmasoft.ProductosServidorViewModel
+import pe.edu.upeu.pharmamobile.presentation.pharmasoft.ClientesServidorScreen
+import pe.edu.upeu.pharmamobile.presentation.pharmasoft.ClientesServidorViewModel
+import pe.edu.upeu.pharmamobile.ui.theme.PharmaMobilTheme
+import pe.edu.upeu.pharmamobile.presentation.permiso.PermisosScreen
+import pe.edu.upeu.pharmamobile.presentation.permiso.PermisosViewModel
+
+@Composable
+@Preview
+fun App() {
+    var darkTheme by remember { mutableStateOf(false) }
+
+    KoinContext {
+        PharmaMobilTheme(darkTheme = darkTheme) {
+            val sesionViewModel = koinViewModel<SesionViewModel>()
+            val sesionState by sesionViewModel.uiState.collectAsStateWithLifecycle()
+            val usuario = sesionState.sesion
+            if (usuario == null) {
+                LoginScreen(
+                    state = sesionState,
+                    onUsuarioChange = sesionViewModel::cambiarUsuario,
+                    onClaveChange = sesionViewModel::cambiarClave,
+                    onIniciar = sesionViewModel::iniciar,
+                    onReintentar = sesionViewModel::recuperar
+                )
+            } else {
+                PharmaMobilApp(
+                    darkTheme = darkTheme,
+                    onDarkThemeChange = { darkTheme = it },
+                    usuario = usuario,
+                    onCerrarSesion = sesionViewModel::cerrar
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PharmaMobilApp(
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+    usuario: UsuarioSesionUi,
+    onCerrarSesion: () -> Unit
+) {
+    var pantallaActual by remember { mutableStateOf<Screen>(Screen.Inicio) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Text(
+                    text = "PharmaMobil",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(20.dp)
+                )
+                HorizontalDivider()
+
+                (if (usuario.modoOffline) destinosOffline(usuario.permisos) else destinosPermitidos(usuario.permisos))
+                    .forEach { destino ->
+                    NavigationDrawerItem(
+                        label = { Text(destino.titulo) },
+                        selected = pantallaActual == destino,
+                        onClick = {
+                            pantallaActual = destino
+                            scope.launch { drawerState.close() }
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
+                Text(
+                    text = "Sesión: ${usuario.nombreCompleto.ifBlank { usuario.usuario }}",
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                if (usuario.modoOffline) {
+                    Text(
+                        text = "Modo sin conexión: solo datos locales",
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    )
+                }
+                TextButton(onClick = onCerrarSesion, modifier = Modifier.padding(horizontal = 12.dp)) {
+                    Text("Cerrar sesión")
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Tema oscuro", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = if (darkTheme) "Activado" else "Desactivado",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = darkTheme,
+                        onCheckedChange = onDarkThemeChange
+                    )
+                }
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(tituloPantalla(pantallaActual)) },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            if (pantallaActual is Screen.DetalleProducto) pantallaActual = Screen.Productos
+                            else scope.launch { drawerState.open() }
+                        }) {
+                            Text(if (pantallaActual is Screen.DetalleProducto) "←" else "☰", style = MaterialTheme.typography.titleLarge)
+                        }
+                    }
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when (pantallaActual) {
+                    Screen.Inicio -> InicioScreen()
+                    Screen.ProductosServidor -> {
+                        val viewModel = koinViewModel<ProductosServidorViewModel>()
+                        val state by viewModel.uiState.collectAsStateWithLifecycle()
+                        ProductosServidorScreen(
+                            state, usuario.puede(Permisos.CATALOGO_ESCRIBIR),
+                            viewModel::formulario, viewModel::guardar, viewModel::editar,
+                            viewModel::limpiar, viewModel::eliminar, viewModel::cargar
+                        )
+                    }
+                    Screen.ClientesServidor -> {
+                        val viewModel = koinViewModel<ClientesServidorViewModel>()
+                        val state by viewModel.uiState.collectAsStateWithLifecycle()
+                        ClientesServidorScreen(
+                            state, usuario.puede(Permisos.CLIENTES_ESCRIBIR),
+                            viewModel::formulario, viewModel::guardar, viewModel::editar,
+                            viewModel::limpiar, viewModel::eliminar, viewModel::cargar
+                        )
+                    }
+                    Screen.Productos -> {
+                        val viewModel = koinViewModel<pe.edu.upeu.pharmamobile.presentation.producto.ProductoViewModel>()
+                        val state by viewModel.uiState.collectAsStateWithLifecycle()
+                        ProductoScreen(
+                            state = state,
+                            onNombreChange = viewModel::cambiarNombre,
+                            onPrecioChange = viewModel::cambiarPrecio,
+                            onStockChange = viewModel::cambiarStock,
+                            onRegistrar = viewModel::guardar,
+                            onReintentar = viewModel::cargarProductos,
+                            onDetalle = { pantallaActual = Screen.DetalleProducto(it) },
+                            onReintentarFallidas = viewModel::reintentarFallidas,
+                            puedeRegistrar = usuario.puede(Permisos.CATALOGO_ESCRIBIR)
+                        )
+                    }
+                    Screen.Catalogo -> {
+                        val viewModel = koinViewModel<CatalogoViewModel>()
+                        val state by viewModel.uiState.collectAsStateWithLifecycle()
+                        CatalogoScreen(state, viewModel::cambiarId, viewModel::buscarId, viewModel::cargar, viewModel::probarTimeout, viewModel::probarJson)
+                    }
+                    Screen.Clientes -> {
+                        val viewModel = koinViewModel<pe.edu.upeu.pharmamobile.presentation.cliente.ClienteViewModel>()
+                        val state by viewModel.uiState.collectAsStateWithLifecycle()
+                        ClienteScreen(
+                            state = state,
+                            onNombreChange = viewModel::cambiarNombre,
+                            onCorreoChange = viewModel::cambiarCorreo,
+                            onTelefonoChange = viewModel::cambiarTelefono,
+                            onRegistrar = viewModel::guardar,
+                            onReintentar = viewModel::cargarClientes,
+                            puedeRegistrar = usuario.puede(Permisos.CLIENTES_ESCRIBIR)
+                        )
+                    }
+                    Screen.Pedidos -> PedidoScreen()
+                    Screen.Permisos -> {
+                        val viewModel = koinViewModel<PermisosViewModel>()
+                        val state by viewModel.uiState.collectAsStateWithLifecycle()
+                        PermisosScreen(
+                            state,
+                            onSolicitar = { viewModel.solicitar(it) },
+                            onAbrirAjustes = { viewModel.abrirAjustes() },
+                            onActualizar = { viewModel.actualizarEstados() }
+                        )
+                    }
+                    is Screen.DetalleProducto -> {
+                        val viewModel = koinViewModel<DetalleProductoViewModel>()
+                        val state by viewModel.uiState.collectAsStateWithLifecycle()
+                        LaunchedEffect((pantallaActual as Screen.DetalleProducto).id) {
+                            viewModel.cargar((pantallaActual as Screen.DetalleProducto).id)
+                        }
+                        DetalleProductoScreen(state, viewModel::compartir)
+                    }
+                }
+            }
+        }
+    }
+}
